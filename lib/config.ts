@@ -1,21 +1,11 @@
-// Institution configuration - easy to change for any college
 export const institutionConfig = {
-  name: "AlumniForge",
-  shortName: "AF",
-  tagline: "Connect. Grow. Give Back.",
-  primaryColor: "#2563eb", // blue-600
-  logoText: "AlumniForge",
-
-  // Enable / disable modules
-  modules: {
-    home: true,
-    network: true,
-    events: true,
-    contribute: true,
-    opportunities: true,
-    profile: true,
-    admin: true,
-  },
+  name: "NammaShale",
+  nameKannada: "ನಮ್ಮಶಾಲೆ",
+  shortName: "ನ",
+  tagline: "Our School. Our Responsibility. Our Future.",
+  primaryColor: "#047857",
+  localeDefault: "en" as const,
+  supportedLocales: ["en", "kn"] as const,
+  modules: { school: true, students: true, attendance: true, academics: true, alumni: true, javabdari: true, partnerships: true, teachers: true, notices: true, events: true },
 };
-
 export type InstitutionConfig = typeof institutionConfig;

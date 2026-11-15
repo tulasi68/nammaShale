@@ -1,153 +1,25 @@
 "use client";
-
-import { useEffect, useState } from "react";
-import { Header } from "@/components/Header";
-import { EventCard } from "@/components/EventCard";
-import { ImagePicker } from "@/components/ImagePicker";
-import { institutionConfig } from "@/lib/config";
-import { getCurrentUser } from "@/lib/auth";
-import { getPosts, addPost, getEvents, type Post } from "@/lib/store";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-
-export default function HomePage() {
-  const router = useRouter();
-  const [user, setUser] = useState<ReturnType<typeof getCurrentUser>>(null);
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [events, setEvents] = useState<ReturnType<typeof getEvents>>([]);
-  const [newPost, setNewPost] = useState("");
-  const [postImage, setPostImage] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
-
-  useEffect(() => {
-    const u = getCurrentUser();
-    if (!u) {
-      router.replace("/login");
-      return;
-    }
-    setUser(u);
-    setPosts(getPosts());
-    setEvents(getEvents());
-  }, [router]);
-
-  const handleCreatePost = () => {
-    if (!newPost.trim() || !user) return;
-    const updated = addPost({
-      author: user.name,
-      batch: user.batch || "",
-      content: newPost.trim(),
-      image: postImage,
-    });
-    setPosts(updated);
-    setNewPost("");
-    setPostImage(null);
-    setShowForm(false);
-  };
-
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-slate-400 text-sm">
-        Loading...
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <Header />
-
-      <main className="px-4 py-4 space-y-6">
-        {/* Welcome */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-5 text-white">
-          <h2 className="text-lg font-semibold">Welcome, {user.name.split(" ")[0]}</h2>
-          <p className="text-blue-100 text-sm mt-1">
-            {user.role === "admin" ? "College Admin" : `Class of ${user.batch || "—"}`} · {institutionConfig.tagline}
-          </p>
-        </div>
-
-        {/* Upcoming Events */}
-        <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-slate-800">Upcoming Events</h2>
-            <Link href="/events" className="text-sm text-blue-600 font-medium">
-              See all
-            </Link>
-          </div>
-          <div className="space-y-3">
-            {events.slice(0, 2).map((event) => (
-              <EventCard key={event.id} event={event} />
-            ))}
-            {events.length === 0 && (
-              <p className="text-sm text-slate-400">No upcoming events yet.</p>
-            )}
-          </div>
-        </section>
-
-        {/* Community Feed */}
-        <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-slate-800">Community</h2>
-            <button
-              type="button"
-              onClick={() => setShowForm(!showForm)}
-              className="text-sm text-blue-600 font-medium"
-            >
-              {showForm ? "Cancel" : "+ New Post"}
-            </button>
-          </div>
-
-          {showForm && (
-            <div className="bg-white rounded-xl border border-slate-200 p-4 mb-3 space-y-3">
-              <textarea
-                value={newPost}
-                onChange={(e) => setNewPost(e.target.value)}
-                placeholder="Share an update with the community..."
-                rows={3}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              />
-              <ImagePicker value={postImage} onChange={setPostImage} />
-              <button
-                type="button"
-                onClick={handleCreatePost}
-                disabled={!newPost.trim()}
-                className="w-full py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition"
-              >
-                Post
-              </button>
-            </div>
-          )}
-
-          <div className="space-y-3">
-            {posts.map((post) => (
-              <div key={post.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                {post.image && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={post.image} alt="" className="w-full h-48 object-cover" />
-                )}
-                <div className="p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-medium text-slate-600">
-                      {post.author
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")
-                        .slice(0, 2)}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-800">{post.author}</p>
-                      <p className="text-xs text-slate-400">
-                        {post.batch ? `Class of ${post.batch} · ` : ""}
-                        {post.time}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-sm text-slate-700 leading-relaxed">{post.content}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </main>
-    </>
-  );
-}
+import { BookOpen, ClipboardCheck, GraduationCap, HandHeart, HeartHandshake, School, Users, Megaphone, ArrowUpRight, Sparkles, ShieldCheck } from "lucide-react";
+const modules = [
+ {href:"/school",title:"Namma School",kn:"ನಮ್ಮ ಶಾಲೆ",description:"School information, staff, notices, events and daily operations.",icon:School,tone:"bg-sky-50 text-sky-700"},
+ {href:"/students",title:"Namma Students",kn:"ನಮ್ಮ ಮಕ್ಕಳು",description:"Student profiles, learning progress, achievements and support.",icon:GraduationCap,tone:"bg-violet-50 text-violet-700"},
+ {href:"/attendance",title:"Attendance",kn:"ಹಾಜರಾತಿ",description:"Class-wise attendance and academic-year records.",icon:ClipboardCheck,tone:"bg-emerald-50 text-emerald-700"},
+ {href:"/academics",title:"Learning & Results",kn:"ಕಲಿಕೆ ಮತ್ತು ಫಲಿತಾಂಶ",description:"Assessments, marksheets, learning support and progress.",icon:BookOpen,tone:"bg-amber-50 text-amber-700"},
+ {href:"/alumni",title:"Namma Alumni",kn:"ನಮ್ಮ ಹಳೆಯ ವಿದ್ಯಾರ್ಥಿಗಳು",description:"Reconnect alumni, invite volunteers and share experience.",icon:Users,tone:"bg-indigo-50 text-indigo-700"},
+ {href:"/javabdari",title:"Namma Javabdari",kn:"ನಮ್ಮ ಜವಾಬ್ದಾರಿ",description:"Identify school needs, organise support and track outcomes.",icon:HandHeart,tone:"bg-rose-50 text-rose-700"},
+ {href:"/partnerships",title:"Namma Partnership",kn:"ನಮ್ಮ ಸಹಭಾಗಿತ್ವ",description:"Private-school partnerships, teacher exchange and student mentoring.",icon:HeartHandshake,tone:"bg-teal-50 text-teal-700"},
+ {href:"/teachers",title:"Teacher Network",kn:"ಶಿಕ್ಷಕರ ಜಾಲ",description:"Share lesson plans, subject expertise and good practices.",icon:GraduationCap,tone:"bg-orange-50 text-orange-700"},
+ {href:"/notices",title:"Notices & Events",kn:"ಸೂಚನೆಗಳು ಮತ್ತು ಕಾರ್ಯಕ್ರಮಗಳು",description:"School announcements, activities and calendar.",icon:Megaphone,tone:"bg-cyan-50 text-cyan-700"}
+];
+const priorities=[{label:"Student development",value:"Learning, attendance and wellbeing"},{label:"School improvement",value:"Needs, volunteers and measurable progress"},{label:"Community partnership",value:"Alumni, families and partner schools"}];
+export default function HomePage(){return <main className="min-h-screen bg-[#f6f8f7] pb-24">
+<header className="bg-white border-b border-slate-200"><div className="mx-auto max-w-6xl px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
+<Link href="/" className="flex items-center gap-3 min-w-0"><div className="h-11 w-11 rounded-2xl bg-emerald-700 text-white grid place-items-center font-bold text-lg">ನ</div><div><div className="font-bold text-slate-900">NammaShale <span className="text-emerald-700">ನಮ್ಮಶಾಲೆ</span></div><div className="text-xs text-slate-500">Our School. Our Responsibility. Our Future.</div></div></Link>
+<div className="hidden sm:flex items-center gap-2 text-xs font-medium text-slate-600 rounded-full border border-slate-200 px-3 py-2"><ShieldCheck size={15} className="text-emerald-700"/> Government school first · Community supported</div><Link href="/school" className="rounded-xl bg-emerald-700 text-white px-4 py-2.5 text-sm font-semibold">Explore pilot <ArrowUpRight size={16} className="inline ml-1"/></Link></div></header>
+<div className="mx-auto max-w-6xl px-4 sm:px-6">
+<section className="pt-7 sm:pt-10"><div className="rounded-3xl bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-800 text-white p-6 sm:p-9 relative overflow-hidden"><div className="absolute -right-10 -top-16 h-64 w-64 rounded-full border-[36px] border-white/5"/><div className="relative max-w-3xl"><div className="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/15 px-3 py-1.5 text-xs"><Sparkles size={14}/> A shared platform for stronger government schools</div><h1 className="mt-5 text-3xl sm:text-4xl font-bold tracking-tight leading-tight">A school grows stronger when its whole community stands with it.</h1><p className="mt-4 text-emerald-50/90 text-sm sm:text-base leading-relaxed max-w-2xl">NammaShale brings together students, teachers, parents, alumni, local communities and partner schools — to support everyday school life and create better opportunities for every child.</p><div className="mt-6 flex flex-wrap gap-3"><Link href="/school" className="rounded-xl bg-white text-emerald-900 px-4 py-3 text-sm font-semibold">View school workspace</Link><Link href="/javabdari" className="rounded-xl border border-white/30 bg-white/10 text-white px-4 py-3 text-sm font-semibold">See how to contribute</Link></div></div></div></section>
+<section className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">{priorities.map((item,i)=><div key={item.label} className="bg-white rounded-2xl border border-slate-200 p-4 flex gap-3 items-start"><div className="h-8 w-8 rounded-xl bg-emerald-50 text-emerald-800 grid place-items-center text-sm font-bold">{i+1}</div><div><div className="text-sm font-semibold text-slate-900">{item.label}</div><div className="text-xs text-slate-500 mt-1">{item.value}</div></div></div>)}</section>
+<section className="mt-9"><div className="mb-4"><p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700">Explore the platform</p><h2 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">One school. Many ways to make a difference.</h2></div><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">{modules.map(item=>{const Icon=item.icon;return <Link key={item.href} href={item.href} className="group bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 hover:border-emerald-300 hover:shadow-md transition"><div className="flex items-start justify-between gap-3"><div className={"h-11 w-11 rounded-2xl grid place-items-center "+item.tone}><Icon size={21}/></div><ArrowUpRight size={17} className="text-slate-300 group-hover:text-emerald-700"/></div><h3 className="mt-4 font-bold text-slate-900">{item.title}</h3><p className="text-xs text-emerald-800 font-medium mt-0.5">{item.kn}</p><p className="text-sm text-slate-500 mt-2 leading-relaxed">{item.description}</p></Link>})}</div></section>
+<section className="mt-8 mb-8 bg-white border border-slate-200 rounded-2xl p-5 sm:p-6"><div className="flex items-start gap-3"><div className="h-10 w-10 rounded-xl bg-amber-50 text-amber-700 grid place-items-center shrink-0"><ShieldCheck size={20}/></div><div><h2 className="font-bold text-slate-900">Children’s data deserves special care.</h2><p className="text-sm text-slate-600 mt-1 leading-relaxed">Student records are for authorised school staff and guardians only. Partner schools, alumni and community supporters will see only information explicitly approved for their role. Mentoring involving minors must be institution-approved, teacher-supervised and supported by required guardian consent.</p></div></div></section>
+<footer className="py-5 text-center text-xs text-slate-400">NammaShale · Pilot foundation · Built for Kannada and English-speaking school communities</footer></div></main>}
