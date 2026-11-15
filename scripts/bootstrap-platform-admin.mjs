@@ -21,7 +21,7 @@ function readHiddenPassword() {
     const onData = (chunk) => {
       for (const char of chunk.toString("utf8")) {
         if (char === "\u0003") { cleanup(); reject(new Error("Cancelled.")); return; }
-        if (char === "\r" || char === "\n") { cleanup(); stdout.write("\\n"); resolve(value); return; }
+        if (char === "\r" || char === "\n") { cleanup(); stdout.write("\n"); resolve(value); return; }
         if (char === "\u007f" || char === "\b") value = value.slice(0,-1);
         else if (char >= " " && char <= "~") value += char;
       }
