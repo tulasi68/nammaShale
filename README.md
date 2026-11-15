@@ -104,3 +104,10 @@ The script prompts for a strong initial password and stores only a PBKDF2 hash.
 - `GET|POST /v1/institutions/:institutionId/attendance`
 
 Student and attendance endpoints require an active platform-admin, headmaster or government-teacher membership. They do not expose student data to alumni, partner-school members or community volunteers.
+
+
+### Frontend sign-in
+
+Copy `.env.example` to `.env.local` and set `NEXT_PUBLIC_NAMMASHALE_API_URL` to the deployed API Worker origin. The sign-in page calls the Worker with credentialed requests. Configure the Worker `APP_ORIGIN` to the exact frontend origin. Prefer frontend and API custom domains under the same site so the secure session cookie works consistently across browsers.
+
+The old AlumniForge demo login has been replaced; legacy demo pages redirect to their NammaShale module equivalents. The sign-in page remains unavailable until the API origin is configured and accounts have been provisioned by an authorised administrator.
