@@ -1,9 +1,8 @@
 #!/usr/bin/env node
-import { createHash, pbkdf2Sync, randomBytes, randomUUID } from "node:crypto";
+import { pbkdf2Sync, randomBytes, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 
 const database = process.env.NAMMASHALE_D1_DATABASE || "namma-shale-db";
@@ -13,9 +12,25 @@ if (!email || !name) {
   console.error("Set NAMMASHALE_ADMIN_EMAIL and NAMMASHALE_ADMIN_NAME before running.");
   process.exit(1);
 }
-const rl = createInterface({ input: stdin, output: stdout });
-const password = await rl.question("Initial platform admin password (min 14 chars): ");
-rl.close();
+if (!stdin.isTTY || typeof stdin.setRawMode !== "function") throw new Error("Run this script in an interactive terminal so the password can be entered without echo.");
+function readHiddenPassword() {
+  return new Promise((resolve, reject) => {
+    let value = "";
+    stdout.write("Initial platform admin password (min 14 chars): ");
+    stdin.setRawMode(true); stdin.resume();
+    const onData = (chunk) => {
+      for (const char of chunk.toString("utf8")) {
+        if (char === "\u0003") { cleanup(); reject(new Error("Cancelled.")); return; }
+        if (char === "\r" || char === "\n") { cleanup(); stdout.write("\\n"); resolve(value); return; }
+        if (char === "\u007f" || char === "\b") value = value.slice(0,-1);
+        else if (char >= " " && char <= "~") value += char;
+      }
+    };
+    const cleanup = () => { stdin.off("data",onData); stdin.setRawMode(false); stdin.pause(); };
+    stdin.on("data",onData);
+  });
+}
+const password = await readHiddenPassword();
 if (password.length < 14) throw new Error("Password must be at least 14 characters.");
 const salt = randomBytes(16);
 const derived = pbkdf2Sync(password, salt, 210000, 32, "sha256");

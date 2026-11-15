@@ -18,7 +18,10 @@ const RATE_WINDOW_SECONDS = 900;
 const RATE_MAX_ATTEMPTS = 8;
 
 function json(data: unknown, status = 200, headers: HeadersInit = {}) {
-  return new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...headers } });
+  const responseHeaders = new Headers(headers);
+  responseHeaders.set("content-type", "application/json; charset=utf-8");
+  responseHeaders.set("cache-control", "no-store");
+  return new Response(JSON.stringify(data), { status, headers: responseHeaders });
 }
 function error(message: string, status: number) { return json({ error: message }, status); }
 function randomToken(bytes = 32) {
@@ -92,7 +95,7 @@ async function requireMembership(request: Request, env: Env, institutionId: stri
   const user = await currentUser(request,env); if (!user) return { user: null, membership: null, response: error("Authentication required",401) };
   const placeholders = roles.map(()=>"?").join(",");
   const membership = await env.DB.prepare(`SELECT id,institution_id,role,status FROM memberships
-    WHERE user_id=? AND institution_id=? AND status='active' AND role IN (${placeholders}) LIMIT 1`)
+    WHERE user_id=? AND status='active' AND ((institution_id=? AND role IN (${placeholders})) OR role='platform_admin') LIMIT 1`)
     .bind(user.id,institutionId,...roles).first<Membership>();
   if (!membership) return { user, membership: null, response: error("You are not authorised for this school",403) };
   return { user, membership, response: null };
