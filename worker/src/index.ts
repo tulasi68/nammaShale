@@ -126,7 +126,7 @@ async function login(request: Request, env: Env) {
   if (!user || user.status !== "active" || !user.password_hash || !(await verifyPassword(password,user.password_hash))) return error("Invalid email or password",401);
   const token = randomToken(); const tokenHash = await sha256(token);
   const ttlHours = Math.max(1,Math.min(24,Number(env.SESSION_TTL_HOURS || SESSION_HOURS_DEFAULT)));
-  const expiresAt = new Date(Date.now()+ttlHours*3600000).toISOString();
+  const expiresAt = new Date(Date.now()+ttlHours*3600000).toISOString().replace("T"," ").replace("Z","").split(".")[0];
   await env.DB.prepare("INSERT INTO auth_sessions(id,token_hash,user_id,expires_at) VALUES(?,?,?,?)").bind(crypto.randomUUID(),tokenHash,user.id,expiresAt).run();
   await env.DB.prepare("DELETE FROM auth_rate_limits WHERE key_hash=?").bind(await sha256("login:"+(request.headers.get("cf-connecting-ip")||"unknown"))).run();
   return json({ok:true},200,{"set-cookie":sessionCookie(token,ttlHours*3600)});
