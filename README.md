@@ -68,3 +68,46 @@ Start with one government school. Configure institution identity, validate user 
 ## Legal and operational validation
 
 Before production use, obtain qualified review of Karnataka education-department requirements, child-protection and consent processes, DPDP obligations and commencement, retention/deletion, breach response, data-sharing agreements and government financial procedures. This project does not claim legal or regulatory compliance merely by providing technical controls.
+
+
+## Secure API foundation (in progress)
+
+The API Worker lives in `worker/src/index.ts`. It provides password verification using PBKDF2-HMAC-SHA-256, opaque hashed sessions, HttpOnly/Secure/SameSite cookies, login throttling, origin checks, audit events, and institution-scoped student and attendance endpoints.
+
+**Do not enter real student information yet.** The API foundation is not a production security certification; account invitation/reset, guardian access, MFA, retention, export controls, backup/restore and independent security review remain necessary.
+
+### Configure and apply the API database
+
+1. Create a dedicated Cloudflare D1 database for NammaShale. Do not reuse another project's database.
+2. Set the database ID and exact frontend origin in `wrangler.toml`.
+3. Apply the schema and migration in order:
+
+```bash
+npx wrangler d1 execute namma-shale-db --remote --file=db/schema.sql
+npx wrangler d1 execute namma-shale-db --remote --file=db/migrations/0002_secure_platform_core.sql
+```
+
+Use `--local` instead of `--remote` for local development. Provision the first platform administrator only after both schema files are applied:
+
+```bash
+NAMMASHALE_ADMIN_EMAIL=admin@example.org NAMMASHALE_ADMIN_NAME="Platform Admin" node scripts/bootstrap-platform-admin.mjs
+```
+
+The script prompts for a strong initial password and stores only a PBKDF2 hash.
+
+### API routes
+
+- `GET /health`
+- `POST /v1/auth/login` and `POST /v1/auth/logout`
+- `GET /v1/me`
+- `GET|POST /v1/institutions/:institutionId/students`
+- `GET|POST /v1/institutions/:institutionId/attendance`
+
+Student and attendance endpoints require an active platform-admin, headmaster or government-teacher membership. They do not expose student data to alumni, partner-school members or community volunteers.
+
+
+### Frontend sign-in
+
+Copy `.env.example` to `.env.local` and set `NEXT_PUBLIC_NAMMASHALE_API_URL` to the deployed API Worker origin. The sign-in page calls the Worker with credentialed requests. Configure the Worker `APP_ORIGIN` to the exact frontend origin. Prefer frontend and API custom domains under the same site so the secure session cookie works consistently across browsers.
+
+The old AlumniForge demo login has been replaced; legacy demo pages redirect to their NammaShale module equivalents. The sign-in page remains unavailable until the API origin is configured and accounts have been provisioned by an authorised administrator.

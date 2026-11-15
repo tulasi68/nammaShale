@@ -1,0 +1,17 @@
+name: NammaShale CI
+on:
+  pull_request:
+    branches: [main, feat/namma-shale-foundation]
+  push:
+    branches: [main, feat/namma-shale-foundation, feat/secure-platform-core]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run typecheck:api
+      - run: npm run build
