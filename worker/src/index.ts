@@ -215,7 +215,9 @@ async function handle(request: Request, env: Env): Promise<Response> {
     const rows=await env.DB.prepare("SELECT id,name,name_kn,udise_code,district,taluk,village,status,created_at FROM institutions WHERE institution_type='government_school' ORDER BY name LIMIT 200").all();
     return json({institutions:rows.results||[]});
   }
-  const activateMatch=path.match(/^\/v1\/institutions\/([^/]+)\/activate$/);\n  if(activateMatch&&request.method==="POST")return activateInstitution(request,env,decodeURIComponent(activateMatch[1]));\n  const invitationMatch=path.match(/^\/v1\/institutions\/([^/]+)\/invitations$/);
+  const activateMatch=path.match(/^\/v1\/institutions\/([^/]+)\/activate$/);
+  if(activateMatch&&request.method==="POST")return activateInstitution(request,env,decodeURIComponent(activateMatch[1]));
+  const invitationMatch=path.match(/^\/v1\/institutions\/([^/]+)\/invitations$/);
   if(invitationMatch&&request.method==="POST")return createInvitation(request,env,decodeURIComponent(invitationMatch[1]));
   if (path === "/v1/auth/logout" && request.method === "POST") {
     if (!validOrigin(request,env)) return error("Invalid request origin",403);
