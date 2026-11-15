@@ -5,7 +5,7 @@ interface D1Statement {
   all<T = Record<string, unknown>>(): Promise<D1Result<T>>;
   run(): Promise<D1Result>;
 }
-interface D1Database { prepare(query: string): D1Statement; }
+interface D1Database { prepare(query: string): D1Statement; batch<T = Record<string, unknown>>(statements: D1Statement[]): Promise<D1Result<T>[]>; }
 interface Env { DB: D1Database; APP_ORIGIN: string; SESSION_TTL_HOURS?: string; }
 type MemberRole = "platform_admin" | "headmaster" | "government_teacher" | "government_student" | "parent_guardian" | "private_principal" | "private_teacher" | "student_mentor" | "alumnus" | "community_volunteer" | "education_official";
 interface SessionUser { id: string; full_name: string; email: string | null; preferred_language: string; }
@@ -39,6 +39,12 @@ function fromBase64Url(value: string) {
 }
 async function sha256(value: string) {
   return base64Url(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value))));
+}
+async function hashPassword(password: string) {
+ const salt=crypto.getRandomValues(new Uint8Array(16));
+ const key=await crypto.subtle.importKey("raw",encoder.encode(password),"PBKDF2",false,["deriveBits"]);
+ const bits=await crypto.subtle.deriveBits({name:"PBKDF2",hash:"SHA-256",salt,iterations:PBKDF2_ITERATIONS},key,256);
+ return "pbkdf2$"+PBKDF2_ITERATIONS+"$"+base64Url(salt)+"$"+base64Url(new Uint8Array(bits));
 }
 async function verifyPassword(password: string, stored: string) {
   const parts = stored.split("$");
@@ -100,6 +106,72 @@ async function requireMembership(request: Request, env: Env, institutionId: stri
   if (!membership) return { user, membership: null, response: error("You are not authorised for this school",403) };
   return { user, membership, response: null };
 }
+async function requirePlatformAdmin(request: Request, env: Env) {
+ const user=await currentUser(request,env); if(!user)return {user:null,membership:null,response:error("Authentication required",401)};
+ const membership=await env.DB.prepare("SELECT id,institution_id,role,status FROM memberships WHERE user_id=? AND role='platform_admin' AND status='active' LIMIT 1").bind(user.id).first<Membership>();
+ if(!membership)return {user,membership:null,response:error("Platform administrator access required",403)};
+ return {user,membership,response:null};
+}
+async function createInstitution(request: Request, env: Env) {
+ if(!validOrigin(request,env))return error("Invalid request origin",403);
+ const auth=await requirePlatformAdmin(request,env); if(auth.response)return auth.response;
+ let body:{name?:string;name_kn?:string;udise_code?:string;district?:string;taluk?:string;village?:string;address?:string};
+ try{body=await request.json()}catch{return error("Invalid JSON body",400)}
+ const name=String(body.name||"").trim(); const udise=String(body.udise_code||"").trim();
+ if(!name||name.length>180)return error("School name is required (maximum 180 characters)",400);
+ if(udise&&!/^[0-9]{11}$/.test(udise))return error("UDISE code must contain exactly 11 digits",400);
+ const fields=[body.name_kn,body.district,body.taluk,body.village,body.address];
+ if(fields.some(v=>v!==undefined&&String(v).trim().length>240))return error("A school detail exceeds the permitted length",400);
+ const id=crypto.randomUUID();
+ try{await env.DB.prepare("INSERT INTO institutions(id,name,name_kn,institution_type,udise_code,district,taluk,village,address,status) VALUES(?,?,?,'government_school',?,?,?,?,?,'pending_verification')").bind(id,name,body.name_kn?.trim()||null,udise||null,body.district?.trim()||null,body.taluk?.trim()||null,body.village?.trim()||null,body.address?.trim()||null).run()}catch{return error("Could not register school. The UDISE code may already be in use.",409)}
+ await audit(env,auth.user!.id,auth.membership!.id,id,"institution.create","institution",id);
+ return json({institution:{id,name,name_kn:body.name_kn?.trim()||null,institution_type:"government_school",udise_code:udise||null,status:"pending_verification"}},201);
+}
+async function activateInstitution(request: Request, env: Env, institutionId: string) {
+ if(!validOrigin(request,env))return error("Invalid request origin",403);
+ const auth=await requirePlatformAdmin(request,env); if(auth.response)return auth.response;
+ const result=await env.DB.prepare("UPDATE institutions SET status='active',updated_at=CURRENT_TIMESTAMP WHERE id=? AND institution_type='government_school' AND status='pending_verification'").bind(institutionId).run();
+ if(!result.meta?.changes)return error("School not found or already activated",409);
+ await audit(env,auth.user!.id,auth.membership!.id,institutionId,"institution.activate","institution",institutionId);
+ return json({ok:true,status:"active"});
+}
+async function createInvitation(request: Request, env: Env, institutionId: string) {
+ if(!validOrigin(request,env))return error("Invalid request origin",403);
+ const auth=await requireMembership(request,env,institutionId,["platform_admin","headmaster"]); if(auth.response)return auth.response;
+ const institution=await env.DB.prepare("SELECT id,institution_type,status FROM institutions WHERE id=?").bind(institutionId).first<{id:string;institution_type:string;status:string}>();
+ if(!institution||institution.institution_type!=="government_school")return error("Government school not found",404);
+ if(institution.status!=="active")return error("School must be activated before inviting users",409);
+ let body:{email?:string;role?:string}; try{body=await request.json()}catch{return error("Invalid JSON body",400)}
+ const email=String(body.email||"").trim().toLowerCase(); const role=String(body.role||"");
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)return error("A valid email address is required",400);
+ const allowed=auth.membership!.role==="platform_admin"?["headmaster","government_teacher"]:["government_teacher"];
+ if(!allowed.includes(role))return error("You cannot invite this role",403);
+ if(await env.DB.prepare("SELECT id FROM users WHERE lower(email)=?").bind(email).first())return error("An account with this email already exists",409);
+ const token=randomToken(32),id=crypto.randomUUID(),expiresAt=new Date(Date.now()+7*86400000).toISOString();
+ try{await env.DB.prepare("INSERT INTO user_invitations(id,token_hash,email,institution_id,role,invited_by_membership_id,expires_at) VALUES(?,?,?,?,?,?,?)").bind(id,await sha256(token),email,institutionId,role,auth.membership!.id,expiresAt).run()}catch{return error("Could not create invitation",409)}
+ await audit(env,auth.user!.id,auth.membership!.id,institutionId,"invitation.create","user_invitation",id);
+ return json({invitation:{id,email,role,expires_at:expiresAt,token}},201);
+}
+async function acceptInvitation(request: Request, env: Env) {
+ if(!validOrigin(request,env))return error("Invalid request origin",403);
+ let body:{token?:string;full_name?:string;password?:string;preferred_language?:string}; try{body=await request.json()}catch{return error("Invalid JSON body",400)}
+ const token=String(body.token||""),name=String(body.full_name||"").trim(),password=String(body.password||""),language=body.preferred_language==="kn"?"kn":"en";
+ if(token.length<30||token.length>128||!name||name.length>160)return error("A valid invitation and full name are required",400);
+ if(password.length<14||password.length>256)return error("Password must contain at least 14 characters",400);
+ const invitation=await env.DB.prepare("SELECT id,email,institution_id,role FROM user_invitations WHERE token_hash=? AND accepted_at IS NULL AND revoked_at IS NULL AND datetime(expires_at)>CURRENT_TIMESTAMP").bind(await sha256(token)).first<{id:string;email:string;institution_id:string;role:string}>();
+ if(!invitation)return error("This invitation is invalid, expired or already used",400);
+ if(await env.DB.prepare("SELECT id FROM users WHERE lower(email)=lower(?)").bind(invitation.email).first())return error("An account with this email already exists. Contact the school administrator.",409);
+ const userId=crypto.randomUUID(),membershipId=crypto.randomUUID(),passwordHash=await hashPassword(password);
+ let results:D1Result[];
+ try{results=await env.DB.batch([
+ env.DB.prepare("UPDATE user_invitations SET accepted_at=CURRENT_TIMESTAMP,accepted_user_id=? WHERE id=? AND accepted_at IS NULL AND revoked_at IS NULL AND datetime(expires_at)>CURRENT_TIMESTAMP").bind(userId,invitation.id),
+ env.DB.prepare("INSERT INTO users(id,full_name,email,password_hash,status,preferred_language,password_changed_at) SELECT ?,?,?,?,'active',?,CURRENT_TIMESTAMP WHERE EXISTS(SELECT 1 FROM user_invitations WHERE id=? AND accepted_user_id=?)").bind(userId,name,invitation.email,passwordHash,language,invitation.id,userId),
+ env.DB.prepare("INSERT INTO memberships(id,user_id,institution_id,role,status,approved_at) SELECT ?,?,?,?,'active',CURRENT_TIMESTAMP WHERE EXISTS(SELECT 1 FROM users WHERE id=?)").bind(membershipId,userId,invitation.institution_id,invitation.role,userId)
+ ])}catch{return error("Could not activate this account. Contact the school administrator.",409)}
+ if(!results[0]?.meta?.changes)return error("This invitation has already been used or is no longer valid",409);
+ await audit(env,userId,membershipId,invitation.institution_id,"invitation.accept","user_invitation",invitation.id);
+ return json({ok:true,message:"Account activated. You can now sign in."},201);
+}
 async function rateLimited(request: Request, env: Env) {
   const ip = request.headers.get("cf-connecting-ip") || "unknown";
   const key = await sha256("login:" + ip);
@@ -136,6 +208,15 @@ async function handle(request: Request, env: Env): Promise<Response> {
   if (request.method === "OPTIONS") return new Response(null,{status:204,headers:corsHeaders(request,env)});
   if (path === "/health" && request.method === "GET") return json({ok:true,service:"namma-shale-api",version:1});
   if (path === "/v1/auth/login" && request.method === "POST") return login(request,env);
+  if (path === "/v1/auth/accept-invitation" && request.method === "POST") return acceptInvitation(request,env);
+  if (path === "/v1/institutions" && request.method === "POST") return createInstitution(request,env);
+  if (path === "/v1/institutions" && request.method === "GET") {
+    const auth=await requirePlatformAdmin(request,env); if(auth.response)return auth.response;
+    const rows=await env.DB.prepare("SELECT id,name,name_kn,udise_code,district,taluk,village,status,created_at FROM institutions WHERE institution_type='government_school' ORDER BY name LIMIT 200").all();
+    return json({institutions:rows.results||[]});
+  }
+  const activateMatch=path.match(/^\/v1\/institutions\/([^/]+)\/activate$/);\n  if(activateMatch&&request.method==="POST")return activateInstitution(request,env,decodeURIComponent(activateMatch[1]));\n  const invitationMatch=path.match(/^\/v1\/institutions\/([^/]+)\/invitations$/);
+  if(invitationMatch&&request.method==="POST")return createInvitation(request,env,decodeURIComponent(invitationMatch[1]));
   if (path === "/v1/auth/logout" && request.method === "POST") {
     if (!validOrigin(request,env)) return error("Invalid request origin",403);
     const token=cookieValue(request,SESSION_COOKIE); if(token) await env.DB.prepare("UPDATE auth_sessions SET revoked_at=CURRENT_TIMESTAMP WHERE token_hash=?").bind(await sha256(token)).run();
