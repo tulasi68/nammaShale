@@ -1,0 +1,13 @@
+name = "namma-shale-api"
+main = "worker/src/index.ts"
+compatibility_date = "2026-11-15"
+
+[vars]
+APP_ORIGIN = "https://REPLACE-WITH-YOUR-FRONTEND-DOMAIN"
+SESSION_TTL_HOURS = "12"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "namma-shale-db"
+database_id = "REPLACE-WITH-YOUR-NEW-D1-DATABASE-ID"
+migrations_dir = "db/migrations"
